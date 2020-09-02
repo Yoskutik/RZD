@@ -1,0 +1,16 @@
+md5: 24d11a03ec9c496b11d5c68043ed07c6
+cmd: python .\scripts\rename.py
+wdir: ..
+deps:
+- md5: ddadfeccce323bd8d1f4b485300c5b86
+  path: data/справочник станций по контейнерам.xlsx
+- md5: 08d1a70cfb8f77ec939458b50fc60539
+  path: data/df.csv
+- md5: 86278eada0ac9e391709d21837d4853e
+  path: scripts/rename.py
+outs:
+- md5: f6bfc036b6885546f70e6197286f9dd1
+  path: data/df_renamed.csv
+  cache: true
+  metric: false
+  persist: false

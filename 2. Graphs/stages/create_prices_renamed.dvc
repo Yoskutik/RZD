@@ -1,0 +1,14 @@
+md5: e9832830a38deb8e5dc3c307bd30e870
+cmd: python .\scripts\create_prices.py --renamed
+wdir: ..
+deps:
+- md5: 50c6ab9269d432e1a8cb37493ae85852
+  path: scripts/create_prices.py
+- md5: f6bfc036b6885546f70e6197286f9dd1
+  path: data/df_renamed.csv
+outs:
+- md5: 7bd15e4445ce10266ad5b7b544b6e998
+  path: data/prices_renamed.csv
+  cache: true
+  metric: false
+  persist: false

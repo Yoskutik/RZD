@@ -1,0 +1,14 @@
+md5: 14bc0cc36b50bc49162efa8abad4fe56
+cmd: python .\scripts\extract.py
+wdir: ..
+deps:
+- md5: b14a81bf34d6f7235cdcb40f799c5856
+  path: data/для практики (контейнеры).xlsx
+- md5: a7460eb1ee44f9c84e1d355dce05717a
+  path: scripts/extract.py
+outs:
+- md5: 08d1a70cfb8f77ec939458b50fc60539
+  path: data/df.csv
+  cache: true
+  metric: false
+  persist: false
