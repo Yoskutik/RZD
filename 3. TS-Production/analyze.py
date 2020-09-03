@@ -7,7 +7,7 @@ import statsmodels.api as sm
 from statsmodels.tsa.arima.model import ARIMAResults
 
 
-def print_progress_bar(iteration: int, total: int, progress: str = ''):
+def print_progress_bar(iteration: int, total: int, progress: str = '') -> None:
     percent = f"{100 * (iteration / float(total)):3.2f}"
     length = 100 - len(progress) - len(percent) - 15
     filled_length = int(length * iteration // total)
@@ -15,7 +15,7 @@ def print_progress_bar(iteration: int, total: int, progress: str = ''):
     print(f'\r{progress}: |{bar}| {percent}% Complete', end='\n' if iteration == total else '')
 
 
-def predict_sarimax(**kwargs):
+def predict_sarimax(**kwargs) -> dict:
     with open('utils/last_exogs.pkl', 'rb') as f:
         exogs = pickle.load(f)
     exogs = pd.DataFrame.from_dict(exogs)
@@ -64,7 +64,7 @@ parser.add_argument('-r', '--retrain', type=str, metavar='table',
 
 parser.add_argument('-p', '--predict', type=str, metavar='range',
                     help='Запуск в режиме прогнозирования. Принимает диапазон дат в формате \n'
-                         'формате: ГГГГ-ММ:ГГГГ-ММ. Внимание! Прогнозирование на несколько \n'
+                         'формате: ГГГГ-ММ:ГГГГ-ММ. Внимание: Прогнозирование на несколько \n'
                          'месяцев вперёд менее точно, чем прогнозирование на следующий месяц')
 
 parser.add_argument('-n', '--next', type=int, metavar='amount',
@@ -76,13 +76,18 @@ parser.add_argument('-x', '--sarimax', action='store_true',
                          'SARIMAX. Модель SARIMAX ищет завивимости между временными рядами. \n' 
                          'Прогнозирование с помощью SARIMAX даёт более точную оценку для \n' 
                          'показателей объёма экспорт и внутренних перевозок, но худшую для \n' 
-                         'транзита и импорта (по крайней мере на тренировочных данных). \n' 
-                         'Без указания этого флага прогноз будет построен моделью SARIMA')
+                         'транзита и импорта (по крайней мере на тренировочных данных). Без \n' 
+                         'указания этого флага прогноз будет построен моделью SARIMA')
+
+parser.add_argument('-a', '--append', action='store_true',
+                    help='Используйте этот флаг, если необходимо сохранить данные в файле с \n'
+                         'исходными данными. Этот флаг необходимо указывать совместно с \n'
+                         'флагами -r / --retrain и -n / --next')
 
 parser.add_argument('-o', '--out', type=str, metavar='output_table',
-                    help='Если необходимо сохранить файл в формате Excel, введите ключ -o \n' 
-                         'с указанием имени файла (можно без расширения .xslx). Если ключ \n' 
-                         'не указан, вывод проноза будет в терминале')
+                    help='Если необходимо сохранить файл в формате Excel, введите ключ -o c \n' 
+                         'указанием имени файла (можно без расширения .xslx). Если ключ не \n' 
+                         'указан, вывод проноза будет в терминале')
 args = parser.parse_args()
 
 
@@ -147,6 +152,7 @@ cols = ['InTransit', 'Export', 'Import', 'Transit']
 
 if args.predict:
     start, end = args.predict.split(':')
+    print(f'Прогнозирование в диапазоне от {start} до {end}.')
     try:
         if args.sarimax:
             predictions = predict_sarimax(start=start, end=end)
@@ -154,12 +160,13 @@ if args.predict:
             for col in cols:
                 model = ARIMAResults.load(f'utils/models/sarima_{col}.pkl')
                 predictions[col] = model.predict(start, end)
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         print('Перед прогнозированием нужно создать модель. Запустите программу с флагом -r/--retrain и '
-              'укажите путь до таблицы с исходными данными в формате CSV')
+              'укажите путь до таблицы с исходными данными в формате CSV или XLSX')
         exit(1)
 
 if args.next:
+    print(f'Прогнозирование на ближайшие месяцы: {args.next}.')
     try:
         if args.sarimax:
             predictions = predict_sarimax(next=args.next)
@@ -168,9 +175,9 @@ if args.next:
                 model = ARIMAResults.load(f'utils/models/sarima_{col}.pkl')
                 start = model.fittedvalues.index.max() + pd.DateOffset(months=1)
                 predictions[col] = model.predict(start, start + pd.DateOffset(months=args.next - 1))
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         print('Перед прогнозированием нужно создать модель. Запустите программу с флагом -r/--retrain и '
-              'укажите путь до таблицы с исходными данными в формате CSV')
+              'укажите путь до таблицы с исходными данными в форматe CSV или XLSX')
         exit(1)
 
 if args.next or args.predict:
@@ -178,13 +185,29 @@ if args.next or args.predict:
     predictions.columns = ['Внутренние перевозки', 'Экспорт', 'Импорт', 'Транзит']
     predictions.index = list(map(lambda x: str(x)[:7], predictions.index))
 
-    if not args.out:
+    if args.out:
+        args.out = args.out if args.out.endswith('.xlsx') else f'{args.out}.xlsx'
+        print(f'Сохрание прогноза в файле {args.out}')
+        predictions.astype(int).to_excel(args.out, index_label='Месяц')
+    elif args.append:
+        if not args.retrain:
+            print('Флаг -a / --append необходимо указывать совместно с флагом -r / --retrain')
+            exit(1)
+        if args.retrain.endswith('.csv'):
+            tmp = pd.read_csv(args.retrain, index_col='Month')
+        elif args.retrain.endswith('.xlsx'):
+            tmp = pd.read_excel(args.retrain, index_col='Month')
+        predictions.columns = ['InTransit', 'Export', 'Import', 'Transit']
+        predictions = tmp.append(predictions.astype(int))
+        if args.retrain.endswith('csv'):
+            predictions.to_csv(args.retrain, index_label='Month')
+        else:
+            predictions.to_excel(args.retrain, index_label='Month')
+        print(f'Сохрание прогноза в файле {args.retrain}')
+    else:
         for col in predictions.columns:
             predictions[col] = predictions[col].apply(lambda x: f'{x:12,.0f}'.replace(',', '\''))
         print(predictions)
-    else:
-        args.out = args.out if args.out.endswith('.xlsx') else f'{args.out}.xlsx'
-        predictions.astype(int).to_excel(args.out, index_label='Месяц')
 
 if not args.retrain and not args.predict and not args.next:
     parser.print_help()
